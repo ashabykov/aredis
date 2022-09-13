@@ -1,5 +1,6 @@
 import asyncio
 import sys
+import logging
 
 from aredis.commands.cluster import ClusterCommandMixin
 from aredis.commands.connection import ClusterConnectionCommandMixin, ConnectionCommandMixin
@@ -47,6 +48,9 @@ if sys.version_info[:2] >= (3, 6):
 
     mixins.append(IterCommandMixin)
     cluster_mixins.append(ClusterIterCommandMixin)
+
+
+logger = logging.getLogger("aredis.client")
 
 
 class StrictRedis(*mixins):
@@ -413,7 +417,9 @@ class StrictRedisCluster(StrictRedis, *cluster_mixins):
                 return await self.parse_response(r, command, **kwargs)
             except (RedisClusterException, BusyLoadingError, CancelledError):
                 raise
-            except (ConnectionError, TimeoutError):
+            except (ConnectionError, TimeoutError) as e:
+                logger.exception(e)
+
                 try_random_node = True
 
                 if ttl < self.RedisClusterRequestTTL / 2:
@@ -425,6 +431,8 @@ class StrictRedisCluster(StrictRedis, *cluster_mixins):
 
                 raise e
             except MovedError as e:
+                logger.exception(e)
+
                 # Reinitialize on ever x number of MovedError.
                 # This counter will increase faster when the same client object
                 # is shared between multiple threads. To reduce the frequency you
@@ -435,9 +443,13 @@ class StrictRedisCluster(StrictRedis, *cluster_mixins):
                 node = self.connection_pool.nodes.set_node(e.host, e.port, server_type='master')
                 self.connection_pool.nodes.slots[e.slot_id][0] = node
             except TryAgainError as e:
+                logger.exception(e)
+
                 if ttl < self.RedisClusterRequestTTL / 2:
                     await asyncio.sleep(0.05)
             except AskError as e:
+                logger.exception(e)
+
                 redirect_addr, asking = "{0}:{1}".format(e.host, e.port), True
             finally:
                 self.connection_pool.release(r)
