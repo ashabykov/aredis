@@ -418,7 +418,8 @@ class StrictRedisCluster(StrictRedis, *cluster_mixins):
             except (RedisClusterException, BusyLoadingError, CancelledError):
                 raise
             except (ConnectionError, TimeoutError) as e:
-                logger.exception(e)
+                msg = f"{command} execute failed with error: {e.__class__.__name__}({e.message})"
+                logger.warning(msg)
 
                 try_random_node = True
 
@@ -431,7 +432,8 @@ class StrictRedisCluster(StrictRedis, *cluster_mixins):
 
                 raise e
             except MovedError as e:
-                logger.exception(e)
+                msg = f"{command} execute failed with error: {e.__class__.__name__}({e.message})"
+                logger.warning(msg)
 
                 # Reinitialize on ever x number of MovedError.
                 # This counter will increase faster when the same client object
@@ -448,7 +450,8 @@ class StrictRedisCluster(StrictRedis, *cluster_mixins):
                 if ttl < self.RedisClusterRequestTTL / 2:
                     await asyncio.sleep(0.05)
             except AskError as e:
-                logger.exception(e)
+                msg = f"{command} execute failed with error: {e.__class__.__name__}({e.message})"
+                logger.warning(msg)
 
                 redirect_addr, asking = "{0}:{1}".format(e.host, e.port), True
             finally:
